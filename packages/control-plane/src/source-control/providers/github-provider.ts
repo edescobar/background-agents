@@ -46,12 +46,12 @@ function extractHttpStatus(error: unknown): number | undefined {
 export class GitHubSourceControlProvider implements SourceControlProvider {
   readonly name = "github";
 
-  private readonly appConfig?: GitHubProviderConfig["appConfig"];
+  private readonly appConfigs: GitHubProviderConfig["appConfigs"];
   private readonly cacheStore?: GitHubProviderConfig["cacheStore"];
   private readonly userAgent: string;
 
   constructor(config: GitHubProviderConfig = {}) {
-    this.appConfig = config.appConfig;
+    this.appConfigs = config.appConfigs;
     this.cacheStore = config.cacheStore;
     this.userAgent = config.userAgent || USER_AGENT;
   }
@@ -208,7 +208,7 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
    * Check whether a repository is accessible to the GitHub App installation.
    */
   async checkRepositoryAccess(config: GetRepositoryConfig): Promise<RepositoryAccessResult | null> {
-    if (!this.appConfig) {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
       throw new SourceControlProviderError(
         "GitHub App not configured - cannot check repository access",
         "permanent"
@@ -216,22 +216,21 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
 
     try {
-      const repo = await getInstallationRepository(this.appConfig, config.owner, config.name, {
-        cacheStore: this.cacheStore,
-        userAgent: this.userAgent,
-      });
-      if (!repo) {
-        return null;
+      for (const appConfig of this.appConfigs) {
+        const repo = await getInstallationRepository(appConfig, config.owner, config.name, {
+          cacheStore: this.cacheStore,
+          userAgent: this.userAgent,
+        });
+        if (repo && !repo.archived) {
+          return {
+            repoId: repo.id,
+            repoOwner: config.owner.toLowerCase(),
+            repoName: config.name.toLowerCase(),
+            defaultBranch: repo.defaultBranch,
+          };
+        }
       }
-      if (repo.archived) {
-        return null;
-      }
-      return {
-        repoId: repo.id,
-        repoOwner: config.owner.toLowerCase(),
-        repoName: config.name.toLowerCase(),
-        defaultBranch: repo.defaultBranch,
-      };
+      return null;
     } catch (error) {
       throw SourceControlProviderError.fromFetchError(
         `Failed to check repository access: ${error instanceof Error ? error.message : String(error)}`,
@@ -245,7 +244,7 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
    * List all repositories accessible to the GitHub App installation.
    */
   async listRepositories(): Promise<InstallationRepository[]> {
-    if (!this.appConfig) {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
       throw new SourceControlProviderError(
         "GitHub App not configured - cannot list repositories",
         "permanent"
@@ -253,11 +252,25 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
 
     try {
-      const result = await listInstallationRepositories(this.appConfig, {
-        cacheStore: this.cacheStore,
-        userAgent: this.userAgent,
-      });
-      return result.repos.filter((repo) => !repo.archived);
+      const results = await Promise.all(
+        this.appConfigs.map((appConfig) =>
+          listInstallationRepositories(appConfig, {
+            cacheStore: this.cacheStore,
+            userAgent: this.userAgent,
+          })
+        )
+      );
+      const seen = new Set<string>();
+      const allRepos: InstallationRepository[] = [];
+      for (const result of results) {
+        for (const repo of result.repos) {
+          if (repo.archived) continue;
+          if (seen.has(repo.fullName)) continue;
+          seen.add(repo.fullName);
+          allRepos.push(repo);
+        }
+      }
+      return allRepos;
     } catch (error) {
       throw SourceControlProviderError.fromFetchError(
         `Failed to list repositories: ${error instanceof Error ? error.message : String(error)}`,
@@ -271,7 +284,7 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
    * List branches for a repository.
    */
   async listBranches(config: GetRepositoryConfig): Promise<{ name: string }[]> {
-    if (!this.appConfig) {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
       throw new SourceControlProviderError(
         "GitHub App not configured - cannot list branches",
         "permanent"
@@ -279,7 +292,8 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
 
     try {
-      return await listRepositoryBranches(this.appConfig, config.owner, config.name, {
+      const appConfig = await this.resolveConfigForRepo(config);
+      return await listRepositoryBranches(appConfig, config.owner, config.name, {
         cacheStore: this.cacheStore,
         userAgent: this.userAgent,
       });
@@ -295,8 +309,8 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
   /**
    * Generate authentication for git push operations using GitHub App.
    */
-  async generatePushAuth(): Promise<GitPushAuthContext> {
-    if (!this.appConfig) {
+  async generatePushAuth(config?: GetRepositoryConfig): Promise<GitPushAuthContext> {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
       throw new SourceControlProviderError(
         "GitHub App not configured - cannot generate push auth",
         "permanent"
@@ -304,7 +318,8 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
 
     try {
-      const token = await getCachedInstallationToken(this.appConfig, {
+      const appConfig = config ? await this.resolveConfigForRepo(config) : this.appConfigs[0];
+      const token = await getCachedInstallationToken(appConfig, {
         cacheStore: this.cacheStore,
         userAgent: this.userAgent,
       });
@@ -320,8 +335,8 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
   }
 
-  async generateCredentialHelperAuth(): Promise<CredentialHelperAuth> {
-    if (!this.appConfig) {
+  async generateCredentialHelperAuth(config?: GetRepositoryConfig): Promise<CredentialHelperAuth> {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
       throw new SourceControlProviderError(
         "GitHub App not configured - cannot generate credential helper auth",
         "permanent"
@@ -329,13 +344,11 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
     }
 
     try {
-      const { token, expiresAtEpochMs } = await getCachedInstallationTokenWithExpiry(
-        this.appConfig,
-        {
-          cacheStore: this.cacheStore,
-          userAgent: this.userAgent,
-        }
-      );
+      const appConfig = config ? await this.resolveConfigForRepo(config) : this.appConfigs[0];
+      const { token, expiresAtEpochMs } = await getCachedInstallationTokenWithExpiry(appConfig, {
+        cacheStore: this.cacheStore,
+        userAgent: this.userAgent,
+      });
       return {
         username: "x-access-token",
         password: token,
@@ -348,6 +361,32 @@ export class GitHubSourceControlProvider implements SourceControlProvider {
         extractHttpStatus(error)
       );
     }
+  }
+
+  /**
+   * Resolve which appConfig (installation) has access to the given repo.
+   * Tries each installation in order until one can access the repo.
+   * Falls back to the first config if none match (for forward-compat).
+   */
+  private async resolveConfigForRepo(
+    config: GetRepositoryConfig
+  ): Promise<NonNullable<GitHubProviderConfig["appConfigs"]>[number]> {
+    if (!this.appConfigs || this.appConfigs.length === 0) {
+      throw new SourceControlProviderError("GitHub App not configured", "permanent");
+    }
+    if (this.appConfigs.length === 1) {
+      return this.appConfigs[0];
+    }
+    for (const appConfig of this.appConfigs) {
+      const repo = await getInstallationRepository(appConfig, config.owner, config.name, {
+        cacheStore: this.cacheStore,
+        userAgent: this.userAgent,
+      });
+      if (repo) {
+        return appConfig;
+      }
+    }
+    return this.appConfigs[0];
   }
 
   buildManualPullRequestUrl(config: BuildManualPullRequestUrlConfig): string {

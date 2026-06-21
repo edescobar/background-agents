@@ -70,6 +70,7 @@ export interface Env {
   GITHUB_APP_ID?: string;
   GITHUB_APP_PRIVATE_KEY?: string;
   GITHUB_APP_INSTALLATION_ID?: string;
+  GITHUB_APP_INSTALLATION_IDS?: string; // Comma-separated for multi-installation support
 
   // GitLab secrets (for git operations and API access when SCM_PROVIDER=gitlab)
   GITLAB_ACCESS_TOKEN?: string;

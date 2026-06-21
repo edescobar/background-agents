@@ -3,6 +3,7 @@ import type { SessionArtifact } from "@open-inspect/shared";
 import type { ParticipantRole, SandboxEvent, ServerMessage } from "../../../types";
 import type { OpenAITokenRefreshResult } from "../../openai-token-refresh-service";
 import type { ScmCredentialsResult } from "../../scm-credentials-service";
+import type { GetRepositoryConfig } from "../../../source-control";
 import type { SessionRepository } from "../../repository";
 import type { SandboxRow, SessionRow } from "../../types";
 import { assertArtifactType } from "../../artifacts";
@@ -27,7 +28,7 @@ export interface SandboxHandlerDeps {
   getSession: () => SessionRow | null;
   refreshOpenAIToken: (session: SessionRow) => Promise<OpenAITokenRefreshResult>;
   isOpenAISecretsConfigured: () => boolean;
-  getScmCredentials: () => Promise<ScmCredentialsResult>;
+  getScmCredentials: (repoConfig?: GetRepositoryConfig) => Promise<ScmCredentialsResult>;
   broadcast: (message: ServerMessage) => void;
   generateId: () => string;
   now: () => number;
@@ -273,7 +274,10 @@ export function createSandboxHandler(deps: SandboxHandlerDeps): SandboxHandler {
         return Response.json({ error: "No session" }, { status: 404 });
       }
 
-      const result = await deps.getScmCredentials();
+      const result = await deps.getScmCredentials({
+        owner: session.repo_owner,
+        name: session.repo_name,
+      });
       if (!result.ok) {
         return Response.json({ error: result.error }, { status: result.status });
       }

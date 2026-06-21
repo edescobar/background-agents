@@ -682,3 +682,38 @@ export function getGitHubAppConfig(env: {
     installationId: env.GITHUB_APP_INSTALLATION_ID!,
   };
 }
+
+/**
+ * Get GitHub App configs from environment, supporting multiple installations.
+ *
+ * Reads GITHUB_APP_INSTALLATION_IDS (comma-separated) first, falling back to
+ * the singular GITHUB_APP_INSTALLATION_ID for backward compatibility.
+ *
+ * @returns Array of GitHubAppConfig (one per installation ID), or empty array if not configured
+ */
+export function getGitHubAppConfigs(env: {
+  GITHUB_APP_ID?: string;
+  GITHUB_APP_PRIVATE_KEY?: string;
+  GITHUB_APP_INSTALLATION_ID?: string;
+  GITHUB_APP_INSTALLATION_IDS?: string;
+}): GitHubAppConfig[] {
+  if (!env.GITHUB_APP_ID || !env.GITHUB_APP_PRIVATE_KEY) {
+    return [];
+  }
+
+  const idsRaw = env.GITHUB_APP_INSTALLATION_IDS || env.GITHUB_APP_INSTALLATION_ID;
+  if (!idsRaw) {
+    return [];
+  }
+
+  const installationIds = idsRaw
+    .split(",")
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0);
+
+  return installationIds.map((installationId) => ({
+    appId: env.GITHUB_APP_ID!,
+    privateKey: env.GITHUB_APP_PRIVATE_KEY!,
+    installationId,
+  }));
+}

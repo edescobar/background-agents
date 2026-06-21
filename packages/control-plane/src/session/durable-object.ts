@@ -403,8 +403,10 @@ export class SessionDO extends DurableObject<Env> {
         },
         isOpenAISecretsConfigured: () =>
           Boolean(this.env.DB && this.env.REPO_SECRETS_ENCRYPTION_KEY),
-        getScmCredentials: () =>
-          new ScmCredentialsService(this.sourceControlProvider, this.log).getCredentials(),
+        getScmCredentials: (repoConfig) =>
+          new ScmCredentialsService(this.sourceControlProvider, this.log).getCredentials(
+            repoConfig
+          ),
         broadcast: (message) => this.broadcast(message),
         generateId: () => generateId(),
         now: () => Date.now(),

@@ -48,7 +48,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("rate limited: 429"), { status: 429 });
       mockGetInstallationRepository.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider
         .checkRepositoryAccess({ owner: "acme", name: "web" })
         .catch((e: unknown) => e);
@@ -62,7 +62,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("bad gateway: 502"), { status: 502 });
       mockGetInstallationRepository.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider
         .checkRepositoryAccess({ owner: "acme", name: "web" })
         .catch((e: unknown) => e);
@@ -76,7 +76,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("unauthorized: 401"), { status: 401 });
       mockGetInstallationRepository.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider
         .checkRepositoryAccess({ owner: "acme", name: "web" })
         .catch((e: unknown) => e);
@@ -98,7 +98,7 @@ describe("GitHubSourceControlProvider", () => {
         defaultBranch: "main",
       });
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const result = await provider.checkRepositoryAccess({ owner: "acme", name: "web" });
 
       expect(result).toBeNull();
@@ -119,7 +119,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("rate limited: 429"), { status: 429 });
       mockListInstallationRepositories.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider.listRepositories().catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(SourceControlProviderError);
@@ -131,7 +131,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("bad gateway: 502"), { status: 502 });
       mockListInstallationRepositories.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider.listRepositories().catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(SourceControlProviderError);
@@ -143,7 +143,7 @@ describe("GitHubSourceControlProvider", () => {
       const httpError = Object.assign(new Error("unauthorized: 401"), { status: 401 });
       mockListInstallationRepositories.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider.listRepositories().catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(SourceControlProviderError);
@@ -178,7 +178,7 @@ describe("GitHubSourceControlProvider", () => {
         timing: { tokenGenerationMs: 0, pages: [], totalPages: 0, totalRepos: 2 },
       });
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const repos = await provider.listRepositories();
 
       expect(repos.map((repo) => repo.fullName)).toEqual(["acme/active"]);
@@ -246,7 +246,7 @@ describe("GitHubSourceControlProvider", () => {
       });
 
       const provider = new GitHubSourceControlProvider({
-        appConfig: fakeAppConfig,
+        appConfigs: [fakeAppConfig],
         userAgent: "Acme Bot",
       });
       await provider.listRepositories();
@@ -261,7 +261,7 @@ describe("GitHubSourceControlProvider", () => {
       mockGetInstallationRepository.mockResolvedValueOnce(null);
 
       const provider = new GitHubSourceControlProvider({
-        appConfig: fakeAppConfig,
+        appConfigs: [fakeAppConfig],
         userAgent: "Acme Bot",
       });
       await provider.checkRepositoryAccess({ owner: "acme", name: "web" });
@@ -277,7 +277,7 @@ describe("GitHubSourceControlProvider", () => {
     it("falls back to the default User-Agent when none is configured", async () => {
       mockGetInstallationRepository.mockResolvedValueOnce(null);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       await provider.checkRepositoryAccess({ owner: "acme", name: "web" });
 
       expect(mockGetInstallationRepository).toHaveBeenCalledWith(
@@ -306,7 +306,7 @@ describe("GitHubSourceControlProvider", () => {
         expiresAtEpochMs,
       });
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const auth = await provider.generateCredentialHelperAuth();
 
       expect(auth).toEqual({
@@ -323,7 +323,7 @@ describe("GitHubSourceControlProvider", () => {
     it("wraps upstream errors as SourceControlProviderError", async () => {
       mockGetCachedInstallationTokenWithExpiry.mockRejectedValueOnce(new Error("GitHub 500"));
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider.generateCredentialHelperAuth().catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(SourceControlProviderError);
@@ -336,7 +336,7 @@ describe("GitHubSourceControlProvider", () => {
       });
       mockGetCachedInstallationTokenWithExpiry.mockRejectedValueOnce(httpError);
 
-      const provider = new GitHubSourceControlProvider({ appConfig: fakeAppConfig });
+      const provider = new GitHubSourceControlProvider({ appConfigs: [fakeAppConfig] });
       const err = await provider.generateCredentialHelperAuth().catch((e: unknown) => e);
 
       expect(err).toBeInstanceOf(SourceControlProviderError);

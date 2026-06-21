@@ -49,6 +49,7 @@ module "modal_app" {
         GITHUB_APP_ID              = var.github_app_id
         GITHUB_APP_PRIVATE_KEY     = var.github_app_private_key
         GITHUB_APP_INSTALLATION_ID = var.github_app_installation_id
+        GITHUB_APP_INSTALLATION_IDS = var.github_app_installation_ids != "" ? var.github_app_installation_ids : var.github_app_installation_id
       }
     },
     {

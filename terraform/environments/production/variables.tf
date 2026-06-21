@@ -170,8 +170,15 @@ variable "github_app_private_key" {
 }
 
 variable "github_app_installation_id" {
-  description = "GitHub App installation ID"
+  description = "GitHub App installation ID (single installation, backward compat)"
   type        = string
+  default     = ""
+}
+
+variable "github_app_installation_ids" {
+  description = "Comma-separated GitHub App installation IDs for multi-org support. Overrides github_app_installation_id when set."
+  type        = string
+  default     = ""
 }
 
 # =============================================================================

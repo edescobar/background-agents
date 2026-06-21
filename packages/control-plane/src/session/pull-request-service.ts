@@ -100,7 +100,10 @@ export class SessionPullRequestService {
 
       let pushAuth: GitPushAuthContext;
       try {
-        pushAuth = await this.deps.sourceControlProvider.generatePushAuth();
+        pushAuth = await this.deps.sourceControlProvider.generatePushAuth({
+          owner: session.repo_owner,
+          name: session.repo_name,
+        });
         this.deps.log.info("Generated fresh push auth token");
       } catch (error) {
         this.deps.log.error("Failed to generate push auth", {

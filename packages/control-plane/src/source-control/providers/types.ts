@@ -9,8 +9,8 @@ import type { CacheStore } from "@open-inspect/shared";
  * Configuration for GitHubSourceControlProvider.
  */
 export interface GitHubProviderConfig {
-  /** GitHub App configuration (required for push auth) */
-  appConfig?: GitHubAppConfig;
+  /** GitHub App configurations (supports multiple installations for multi-org access) */
+  appConfigs?: GitHubAppConfig[];
   /** Cache store for caching installation tokens */
   cacheStore?: CacheStore;
   /** User-Agent value sent on outbound GitHub API requests */

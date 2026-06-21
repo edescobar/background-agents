@@ -353,14 +353,14 @@ export class GitLabSourceControlProvider implements SourceControlProvider {
   /**
    * Generate authentication for git push operations using the provider PAT.
    */
-  async generatePushAuth(): Promise<GitPushAuthContext> {
+  async generatePushAuth(_config?: GetRepositoryConfig): Promise<GitPushAuthContext> {
     return {
       authType: "pat",
       token: this.accessToken,
     };
   }
 
-  async generateCredentialHelperAuth(): Promise<CredentialHelperAuth> {
+  async generateCredentialHelperAuth(_config?: GetRepositoryConfig): Promise<CredentialHelperAuth> {
     return {
       username: "oauth2",
       password: this.accessToken,

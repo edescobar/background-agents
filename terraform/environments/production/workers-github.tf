@@ -52,6 +52,7 @@ module "github_bot_worker" {
     { name = "GITHUB_APP_ID", value = var.github_app_id },
     { name = "GITHUB_APP_PRIVATE_KEY", value = var.github_app_private_key },
     { name = "GITHUB_APP_INSTALLATION_ID", value = var.github_app_installation_id },
+    { name = "GITHUB_APP_INSTALLATION_IDS", value = var.github_app_installation_ids != "" ? var.github_app_installation_ids : var.github_app_installation_id },
     { name = "GITHUB_WEBHOOK_SECRET", value = var.github_webhook_secret },
     { name = "INTERNAL_CALLBACK_SECRET", value = var.internal_callback_secret },
   ]

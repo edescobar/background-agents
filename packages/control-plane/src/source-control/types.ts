@@ -197,7 +197,7 @@ export interface CreatePullRequestResult {
  *
  * @example
  * ```typescript
- * const provider: SourceControlProvider = createGitHubProvider({ appConfig });
+ * const provider: SourceControlProvider = createGitHubProvider({ appConfigs: [appConfig] });
  *
  * // Session layer decrypts token before calling provider
  * const token = await decryptToken(encryptedToken, encryptionKey);
@@ -298,7 +298,7 @@ export interface SourceControlProvider {
    * @returns Git push authentication context with app token
    * @throws SourceControlProviderError
    */
-  generatePushAuth(): Promise<GitPushAuthContext>;
+  generatePushAuth(config?: GetRepositoryConfig): Promise<GitPushAuthContext>;
 
   /**
    * Generate credentials for the sandbox's git credential helper.
@@ -311,7 +311,7 @@ export interface SourceControlProvider {
    *
    * @throws SourceControlProviderError on configuration or upstream errors
    */
-  generateCredentialHelperAuth(): Promise<CredentialHelperAuth>;
+  generateCredentialHelperAuth(config?: GetRepositoryConfig): Promise<CredentialHelperAuth>;
 
   /**
    * Build provider-specific URL for manual pull request creation.

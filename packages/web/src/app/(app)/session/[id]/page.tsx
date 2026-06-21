@@ -1,6 +1,7 @@
 "use client";
 
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
 import { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
 import { Suspense, useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -162,6 +163,9 @@ function SessionPageContent() {
   );
 
   const [prompt, setPrompt] = useState("");
+  const [pendingAttachments, setPendingAttachments] = useState<
+    Array<{ id: string; name: string; url: string }>
+  >([]);
   const [selectedMediaArtifactId, setSelectedMediaArtifactId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
   const [reasoningEffort, setReasoningEffort] = useState<string | undefined>(
@@ -208,12 +212,60 @@ function SessionPageContent() {
     }
   }, [sessionState?.model, sessionState?.reasoningEffort]);
 
+  const handleUpload = async (file: File) => {
+    const ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+    const MAX_BYTES = 10 * 1024 * 1024;
+    if (file.size === 0) {
+      toast.error("That file is empty.");
+      return;
+    }
+    if (file.type && !ALLOWED_TYPES.includes(file.type)) {
+      toast.error("Unsupported image type. Use PNG, JPEG, or WebP.");
+      return;
+    }
+    if (file.size > MAX_BYTES) {
+      toast.error("Image too large (max 10 MB).");
+      return;
+    }
+
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/upload`, { method: "POST", body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Upload failed" }));
+        console.error("Image upload failed:", err);
+        toast.error(err.error || "Image upload failed");
+        return;
+      }
+      const { artifactId } = await res.json();
+      setPendingAttachments((prev) => [
+        ...prev,
+        { id: artifactId, name: file.name, url: `/api/sessions/${sessionId}/media/${artifactId}` },
+      ]);
+    } catch (err) {
+      console.error("Image upload error:", err);
+      toast.error("Image upload failed. Check your connection and try again.");
+    }
+  };
+
+  const removePendingAttachment = (id: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!prompt.trim() || isProcessing) return;
+    if ((!prompt.trim() && pendingAttachments.length === 0) || isProcessing) return;
 
-    sendPrompt(prompt, selectedModel, reasoningEffort);
+    const attachmentIds = pendingAttachments.map((a) => a.id);
+    sendPrompt(
+      prompt,
+      selectedModel,
+      reasoningEffort,
+      attachmentIds.length > 0 ? attachmentIds : undefined
+    );
     setPrompt("");
+    setPendingAttachments([]);
     // Revalidate sidebar so this session bubbles to the top
     mutate(isUnarchivedSessionListKey);
   };
@@ -273,6 +325,9 @@ function SessionPageContent() {
       sessionId={sessionId}
       selectedMediaArtifactId={selectedMediaArtifactId}
       setSelectedMediaArtifactId={setSelectedMediaArtifactId}
+      onUpload={handleUpload}
+      pendingAttachments={pendingAttachments}
+      onRemoveAttachment={removePendingAttachment}
     />
   );
 }
@@ -310,6 +365,9 @@ function SessionContent({
   sessionId,
   selectedMediaArtifactId,
   setSelectedMediaArtifactId,
+  onUpload,
+  pendingAttachments,
+  onRemoveAttachment,
 }: {
   sessionState: SessionState;
   connected: boolean;
@@ -343,6 +401,9 @@ function SessionContent({
   sessionId: string;
   selectedMediaArtifactId: string | null;
   setSelectedMediaArtifactId: (artifactId: string | null) => void;
+  onUpload: (file: File) => void;
+  pendingAttachments: Array<{ id: string; name: string; url: string }>;
+  onRemoveAttachment: (id: string) => void;
 }) {
   const isBelowLg = useMediaQuery("(max-width: 1023px)");
   const isPhone = useMediaQuery("(max-width: 767px)");
@@ -505,6 +566,9 @@ function SessionContent({
           onChange: handleInputChange,
           onKeyDown: handleKeyDown,
           onStopExecution: stopExecution,
+          onUpload,
+          pendingAttachments,
+          onRemoveAttachment,
         }}
         model={{
           selectedModel,

@@ -13,11 +13,14 @@ import {
   SCREENSHOT_UPLOAD_LIMIT_PER_SESSION,
   VIDEO_MAX_BYTES,
   VIDEO_UPLOAD_LIMIT_PER_SESSION,
+  IMAGE_MAX_BYTES,
+  IMAGE_UPLOAD_LIMIT_PER_SESSION,
   type MultipartFieldValue,
 } from "../media";
 import { createMediaObjectStorage, type ObjectStorage } from "../storage/object-storage";
 import type { Env } from "../types";
 import { listSessionArtifactsFromRuntime, persistMediaArtifact } from "./session-media-artifacts";
+import { SessionInternalPaths } from "../session/contracts";
 import { error, json, parsePattern, type Route } from "./shared";
 import { sessionRoute, type SessionRouteContext } from "./session-route";
 
@@ -62,8 +65,11 @@ async function handleMediaUpload(
   if (artifactTypeField === "video") {
     return handleVideoUpload({ sessionId, formData, fileEntry, storage, ctx });
   }
+  if (artifactTypeField === "image") {
+    return handleImageUpload({ sessionId, fileEntry, storage, ctx });
+  }
   if (artifactTypeField !== "screenshot") {
-    return error("Only screenshot and video uploads are supported", 400);
+    return error("Only screenshot, video, and image uploads are supported", 400);
   }
 
   if (fileEntry.size <= 0) {
@@ -232,6 +238,88 @@ async function handleVideoUpload(input: {
     parseFallback: "Failed to persist video artifact",
   });
   if (persistError) return persistError;
+
+  return json({ artifactId, objectKey }, 201);
+}
+
+async function handleImageUpload(input: {
+  sessionId: string;
+  fileEntry: Exclude<MultipartFieldValue, string>;
+  storage: ObjectStorage;
+  ctx: SessionRouteContext;
+}): Promise<Response> {
+  const { sessionId, fileEntry, storage, ctx } = input;
+
+  if (fileEntry.size <= 0) {
+    return error("Uploaded file is empty", 400);
+  }
+
+  if (fileEntry.size > IMAGE_MAX_BYTES) {
+    return error(`Image uploads must be ${IMAGE_MAX_BYTES} bytes or smaller`, 400);
+  }
+
+  if (
+    fileEntry.type &&
+    fileEntry.type !== "image/png" &&
+    fileEntry.type !== "image/jpeg" &&
+    fileEntry.type !== "image/webp"
+  ) {
+    return error("Unsupported image MIME type", 400);
+  }
+
+  const bytes = new Uint8Array(await fileEntry.arrayBuffer());
+  const detectedFileType = detectScreenshotFileType(bytes);
+  if (!detectedFileType) {
+    return error("Uploaded file is not a supported image format", 400);
+  }
+
+  const artifactsResult = await listSessionArtifactsFromRuntime(sessionId, ctx);
+  if (artifactsResult instanceof Response) return artifactsResult;
+
+  const imageCount = artifactsResult.filter((artifact) => artifact.type === "image").length;
+  if (imageCount >= IMAGE_UPLOAD_LIMIT_PER_SESSION) {
+    return error(`Session image limit of ${IMAGE_UPLOAD_LIMIT_PER_SESSION} uploads exceeded`, 429);
+  }
+
+  const artifactId = generateId();
+  const objectKey = buildMediaObjectKey(sessionId, artifactId, detectedFileType.extension);
+  const metadata = {
+    objectKey,
+    mimeType: detectedFileType.mimeType,
+    sizeBytes: bytes.byteLength,
+    source: "user" as const,
+  };
+
+  await storage.put(objectKey, bytes, { contentType: detectedFileType.mimeType });
+
+  // User-initiated images don't require an active prompt (unlike sandbox-initiated
+  // screenshots/videos). Use createPendingArtifact which skips the active-prompt gate.
+  const createResponse = await ctx.sessionRuntime.fetch(
+    sessionId,
+    SessionInternalPaths.createPendingArtifact,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        artifactId,
+        artifactType: "image",
+        objectKey,
+        metadata,
+      }),
+    }
+  );
+
+  if (!createResponse.ok) {
+    // Cleanup the uploaded file from R2
+    try {
+      await storage.delete(objectKey);
+    } catch {
+      /* best-effort cleanup */
+    }
+
+    const errorText = await createResponse.text();
+    return error(errorText || "Failed to persist image artifact", createResponse.status);
+  }
 
   return json({ artifactId, objectKey }, 201);
 }

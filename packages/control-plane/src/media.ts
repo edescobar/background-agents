@@ -6,6 +6,8 @@ export const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
 export const VIDEO_UPLOAD_LIMIT_PER_SESSION = 20;
 export const VIDEO_MAX_DURATION_MS = 90_000;
 export const VIDEO_TIMESTAMP_TOLERANCE_MS = 1_000;
+export const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+export const IMAGE_UPLOAD_LIMIT_PER_SESSION = 50;
 
 const SCREENSHOT_EXTENSIONS = {
   "image/png": "png",

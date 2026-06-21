@@ -24,6 +24,24 @@ variable "cloudflare_worker_subdomain" {
   type        = string
 }
 
+variable "web_public_url" {
+  description = "Public URL where the web app is served to users (e.g. behind a reverse proxy at https://ide.openkleo.com/projects). Used for NEXTAUTH_URL. Falls back to the workers.dev/vercel URL when empty."
+  type        = string
+  default     = ""
+}
+
+variable "web_base_path" {
+  description = "Next.js basePath the web app is mounted under when reverse-proxied (e.g. '/projects'). Empty serves at root."
+  type        = string
+  default     = ""
+}
+
+variable "iframe_allowed_origins" {
+  description = "Space-separated list of origins allowed to embed the web app in an iframe (e.g. 'https://ide.openkleo.com'). Sets CSP frame-ancestors + switches NextAuth cookies to SameSite=None. Empty = no iframe embedding allowed."
+  type        = string
+  default     = ""
+}
+
 variable "vercel_api_token" {
   description = "Vercel API token (required only when web_platform = 'vercel'). Do NOT set to empty string — the Vercel provider validates this on init even when no Vercel resources are created. Leave unset to use the built-in dummy token for Cloudflare-only deployments."
   type        = string

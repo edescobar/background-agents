@@ -14,6 +14,7 @@ import { SafeMarkdown } from "@/components/safe-markdown";
 import { ScreenshotArtifactCard } from "@/components/screenshot-artifact-card";
 import { ToolCallGroup } from "@/components/tool-call-group";
 import { copyToClipboard } from "@/lib/format";
+import { buildSessionMediaUrl } from "@/lib/media";
 import type { Artifact, SandboxEvent } from "@/types/session";
 import { CheckIcon, CopyIcon, ErrorIcon } from "@/components/ui/icons";
 
@@ -335,11 +336,20 @@ function StatusRow({
 
 function UserMessageEvent({
   event,
+  sessionId,
   currentParticipantId,
   copied,
   onCopyContent,
+  onOpenMedia,
 }: EventRendererProps) {
-  if (event.type !== "user_message" || !event.content) return null;
+  if (event.type !== "user_message") return null;
+
+  const imageAttachments =
+    event.attachments?.filter(
+      (a): a is typeof a & { url: string } => a.type === "image" && !!a.url
+    ) ?? [];
+
+  if (!event.content && imageAttachments.length === 0) return null;
 
   const isCurrentUser =
     event.author?.participantId && currentParticipantId
@@ -364,7 +374,29 @@ function UserMessageEvent({
       copyButtonClassName="p-1 text-secondary-foreground hover:text-foreground hover:bg-muted/60 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto transition-colors"
       onCopyContent={onCopyContent}
     >
-      <pre className="whitespace-pre-wrap text-sm text-foreground">{event.content}</pre>
+      {imageAttachments.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {imageAttachments.map((attachment) => (
+            <button
+              key={attachment.url}
+              type="button"
+              onClick={() => onOpenMedia(attachment.url)}
+              className="block overflow-hidden rounded border border-border-muted"
+              aria-label={attachment.name || "Image attachment"}
+            >
+              <img
+                src={buildSessionMediaUrl(sessionId, attachment.url)}
+                alt={attachment.name || "Image attachment"}
+                className="h-24 w-24 object-cover transition-transform duration-200 hover:scale-[1.02]"
+                loading="lazy"
+              />
+            </button>
+          ))}
+        </div>
+      )}
+      {event.content && (
+        <pre className="whitespace-pre-wrap text-sm text-foreground">{event.content}</pre>
+      )}
     </MessageFrame>
   );
 }

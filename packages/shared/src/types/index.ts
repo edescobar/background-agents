@@ -25,7 +25,7 @@ export type SandboxStatus =
 export type GitSyncStatus = "pending" | "in_progress" | "completed" | "failed";
 export type MessageStatus = "pending" | "processing" | "completed" | "failed";
 export type MessageSource = "web" | "slack" | "linear" | "extension" | "github" | "automation";
-export type ArtifactType = "pr" | "screenshot" | "video" | "preview" | "branch";
+export type ArtifactType = "pr" | "screenshot" | "video" | "preview" | "branch" | "image";
 export type EventType =
   | "heartbeat"
   | "token"
@@ -300,6 +300,7 @@ export type SandboxEvent =
       content: string;
       messageId: string;
       timestamp: number;
+      attachments?: Attachment[];
       author?: {
         participantId: string;
         name: string;

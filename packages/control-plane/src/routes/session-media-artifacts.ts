@@ -27,7 +27,7 @@ async function parseErrorMessage(response: Response, fallback: string): Promise<
 export async function persistMediaArtifact(input: {
   sessionId: string;
   artifactId: string;
-  artifactType: "screenshot" | "video";
+  artifactType: "screenshot" | "video" | "image";
   objectKey: string;
   metadata: ScreenshotArtifactMetadata | VideoArtifactMetadata;
   storage: ObjectStorage;

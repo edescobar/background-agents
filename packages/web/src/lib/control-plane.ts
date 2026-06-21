@@ -109,7 +109,17 @@ export async function controlPlaneFetch(
   options: RequestInit = {}
 ): Promise<Response> {
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const headers = await getControlPlaneHeaders();
+
+  // When sending FormData, omit Content-Type so the runtime sets the
+  // correct multipart/form-data boundary. Otherwise default to JSON.
+  const isFormData = options.body instanceof FormData;
+  const headers = isFormData
+    ? await (async () => {
+        const secret = getInternalSecret();
+        return await buildInternalAuthHeaders(secret);
+      })()
+    : await getControlPlaneHeaders();
+
   const fetchOptions: RequestInit = {
     ...options,
     headers: {

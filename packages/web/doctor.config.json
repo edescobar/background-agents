@@ -1,0 +1,17 @@
+{
+  "$schema": "https://react.doctor/schema/config.json",
+  "ignore": {
+    "files": [".open-next/**"],
+    "rules": [
+      "react-doctor/no-derived-state",
+      "react-doctor/no-derived-state-effect",
+      "react-doctor/no-derived-useState",
+      "react-doctor/no-adjust-state-on-prop-change",
+      "react-doctor/no-reset-all-state-on-prop-change",
+      "react-doctor/artifact-secret-leak"
+    ]
+  },
+  "categories": {
+    "Maintainability": "warn"
+  }
+}

@@ -241,6 +241,41 @@ class TestBuildPromptRequestBody:
             "outputConfig": {"effort": "high"},
         }
 
+    def test_with_image_attachment(self, bridge: AgentBridge):
+        """Image attachments with inline base64 become OpenCode file parts."""
+        body = bridge._build_prompt_request_body(
+            "Look at this",
+            None,
+            attachments=[
+                {
+                    "type": "image",
+                    "name": "shot.png",
+                    "content": "aGVsbG8=",
+                    "mimeType": "image/png",
+                }
+            ],
+        )
+
+        assert body["parts"] == [
+            {"type": "text", "text": "Look at this"},
+            {
+                "type": "file",
+                "mime": "image/png",
+                "filename": "shot.png",
+                "url": "data:image/png;base64,aGVsbG8=",
+            },
+        ]
+
+    def test_image_attachment_without_content_is_skipped(self, bridge: AgentBridge):
+        """Attachments lacking inline base64 content are ignored (text part only)."""
+        body = bridge._build_prompt_request_body(
+            "Hello",
+            None,
+            attachments=[{"type": "image", "name": "shot.png", "url": "artifact-id"}],
+        )
+
+        assert body["parts"] == [{"type": "text", "text": "Hello"}]
+
 
 class TestOpenCodeIdentifier:
     """Tests for OpenCode-compatible ascending ID generation."""

@@ -23,6 +23,15 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        {/* Polyfill for esbuild __name helper used in Next.js SSR inline scripts.
+            OpenNext/CF Worker bundles sometimes reference __name without defining it. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `var __name=(t,v)=>Object.defineProperty(t,"name",{value:v,configurable:true});`,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         <Providers>{children}</Providers>
       </body>

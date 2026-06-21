@@ -72,7 +72,7 @@ resource "local_file" "web_app_wrangler_production" {
     [vars]
     GITHUB_CLIENT_ID = "${var.github_client_id}"
     GOOGLE_CLIENT_ID = "${var.google_client_id}"
-    NEXTAUTH_URL = "${local.web_app_url}"
+    NEXTAUTH_URL = "${var.web_public_url != "" ? var.web_public_url : local.web_app_url}"
     CONTROL_PLANE_URL = "${local.control_plane_url}"
     NEXT_PUBLIC_WS_URL = "${local.ws_url}"
     NEXT_PUBLIC_SANDBOX_PROVIDER = "${var.sandbox_provider}"
@@ -84,6 +84,7 @@ resource "local_file" "web_app_wrangler_production" {
     ALLOWED_EMAIL_DOMAINS = "${var.allowed_email_domains}"
     ALLOWED_EMAILS = "${var.allowed_emails}"
     UNSAFE_ALLOW_ALL_USERS = "${tostring(var.unsafe_allow_all_users)}"
+    IFRAME_ALLOWED_ORIGINS = "${var.iframe_allowed_origins}"
 
     [assets]
     directory = ".open-next/assets"
@@ -118,4 +119,16 @@ resource "null_resource" "web_app_cloudflare_deploy" {
     module.control_plane_worker,
     local_file.web_app_wrangler_production,
   ]
+}
+
+# =============================================================================
+# Custom domain for the web app (e.g. inspect.openkleo.com)
+# =============================================================================
+resource "cloudflare_workers_custom_domain" "web_app" {
+  count = var.web_public_url != "" && var.cloudflare_zone_id != null ? 1 : 0
+
+  account_id = var.cloudflare_account_id
+  zone_id    = var.cloudflare_zone_id
+  hostname   = replace(var.web_public_url, "^https?://", "")
+  service    = "open-inspect-web-${local.name_suffix}"
 }

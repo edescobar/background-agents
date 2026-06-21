@@ -48,7 +48,11 @@ async function handleMediaGet(
 
   const artifact = await getSessionArtifactFromRuntime(sessionId, artifactId, ctx);
   if (artifact instanceof Response) return artifact;
-  if (!artifact || (artifact.type !== "screenshot" && artifact.type !== "video") || !artifact.url) {
+  if (
+    !artifact ||
+    (artifact.type !== "screenshot" && artifact.type !== "video" && artifact.type !== "image") ||
+    !artifact.url
+  ) {
     return error("Media artifact not found", 404);
   }
 

@@ -44,6 +44,7 @@ interface CreateMediaArtifactRequest {
 export interface SandboxHandler {
   sandboxEvent: (request: Request) => Promise<Response>;
   createMediaArtifact: (request: Request) => Promise<Response>;
+  createPendingArtifact: (request: Request) => Promise<Response>;
   addParticipant: (request: Request) => Promise<Response>;
   verifySandboxToken: (request: Request) => Promise<Response>;
   openaiTokenRefresh: () => Promise<Response>;
@@ -116,6 +117,36 @@ export function createSandboxHandler(deps: SandboxHandlerDeps): SandboxHandler {
 
       deps.broadcast({ type: "artifact_created", artifact });
       deps.broadcast({ type: "sandbox_event", event });
+
+      return Response.json({ status: "ok", artifactId: artifact.id });
+    },
+
+    async createPendingArtifact(request: Request): Promise<Response> {
+      const body = (await request.json()) as CreateMediaArtifactRequest;
+
+      if (!body.artifactId || !body.objectKey) {
+        return Response.json({ error: "artifactId and objectKey are required" }, { status: 400 });
+      }
+
+      const artifactType = assertArtifactType(body.artifactType);
+      const now = deps.now();
+      const artifact: SessionArtifact = {
+        id: body.artifactId,
+        type: artifactType,
+        url: body.objectKey,
+        metadata: body.metadata ?? null,
+        createdAt: now,
+      };
+
+      deps.repository.createArtifact({
+        id: artifact.id,
+        type: artifact.type,
+        url: artifact.url,
+        metadata: artifact.metadata ? JSON.stringify(artifact.metadata) : null,
+        createdAt: now,
+      });
+
+      deps.broadcast({ type: "artifact_created", artifact });
 
       return Response.json({ status: "ok", artifactId: artifact.id });
     },

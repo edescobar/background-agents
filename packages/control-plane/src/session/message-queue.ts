@@ -1,5 +1,6 @@
 import { generateId } from "../auth/crypto";
 import { SessionIndexStore } from "../db/session-index";
+import { createMediaObjectStorage } from "../storage/object-storage";
 import type { Logger } from "../logger";
 import {
   DEFAULT_MODEL,
@@ -8,6 +9,7 @@ import {
   isValidModel,
 } from "../utils/models";
 import type {
+  Attachment,
   ClientInfo,
   Env,
   MessageSource,
@@ -53,6 +55,15 @@ interface MessageQueueDeps {
 
 interface StopExecutionOptions {
   suppressStatusReconcile?: boolean;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 export class SessionMessageQueue {
@@ -106,7 +117,7 @@ export class SessionMessageQueue {
 
     await this.deps.setSessionStatus("active");
 
-    this.writeUserMessageEvent(participant, data.content, messageId, now);
+    this.writeUserMessageEvent(participant, data.content, messageId, now, data.attachments);
 
     const position = this.deps.repository.getPendingOrProcessingCount();
 
@@ -201,7 +212,7 @@ export class SessionMessageQueue {
         scmName: author?.scm_name ?? null,
         scmEmail: author?.scm_email ?? null,
       },
-      attachments: message.attachments ? JSON.parse(message.attachments) : undefined,
+      attachments: await this.resolveAttachmentsForSandbox(message.attachments),
     };
 
     const sent = this.deps.wsManager.send(sandboxWs, command);
@@ -220,6 +231,70 @@ export class SessionMessageQueue {
       queue_wait_ms: now - message.created_at,
       has_attachments: !!message.attachments,
     });
+  }
+
+  private async resolveAttachmentsForSandbox(
+    attachmentsJson: string | null
+  ): Promise<Attachment[] | undefined> {
+    if (!attachmentsJson) return undefined;
+
+    let parsed: Attachment[];
+    try {
+      parsed = JSON.parse(attachmentsJson) as Attachment[];
+    } catch {
+      return undefined;
+    }
+    if (!Array.isArray(parsed) || parsed.length === 0) return undefined;
+
+    const storage = createMediaObjectStorage(this.deps.env);
+    const resolved: Attachment[] = [];
+
+    for (const attachment of parsed) {
+      if (attachment.type !== "image" || !attachment.url) {
+        resolved.push(attachment);
+        continue;
+      }
+
+      const artifact = this.deps.repository.getArtifactById(attachment.url);
+      if (!artifact || !artifact.url) {
+        this.deps.log.warn("prompt.attachment.unresolved", {
+          event: "prompt.attachment.unresolved",
+          artifact_id: attachment.url,
+        });
+        resolved.push(attachment);
+        continue;
+      }
+
+      let mimeType: string | undefined;
+      if (artifact.metadata) {
+        try {
+          const meta = JSON.parse(artifact.metadata) as { mimeType?: string };
+          if (typeof meta.mimeType === "string") mimeType = meta.mimeType;
+        } catch {
+          // ignore malformed metadata; fall back to attachment.mimeType
+        }
+      }
+
+      const object = await storage.get(artifact.url);
+      if (!object) {
+        this.deps.log.warn("prompt.attachment.object_missing", {
+          event: "prompt.attachment.object_missing",
+          artifact_id: attachment.url,
+          object_key: artifact.url,
+        });
+        resolved.push(attachment);
+        continue;
+      }
+
+      const buffer = await new Response(object.body).arrayBuffer();
+      resolved.push({
+        ...attachment,
+        content: bytesToBase64(new Uint8Array(buffer)),
+        mimeType: mimeType ?? attachment.mimeType,
+      });
+    }
+
+    return resolved;
   }
 
   async stopExecution(options: StopExecutionOptions = {}): Promise<void> {
@@ -306,13 +381,15 @@ export class SessionMessageQueue {
     participant: ParticipantRow,
     content: string,
     messageId: string,
-    now: number
+    now: number,
+    attachments?: Array<{ type: string; name: string; url?: string; content?: string }>
   ): void {
     const userMessageEvent: SandboxEvent = {
       type: "user_message",
       content,
       messageId,
       timestamp: now / 1000,
+      attachments: attachments as Attachment[] | undefined,
       author: {
         participantId: participant.id,
         name: participant.scm_name || participant.scm_login || participant.user_id,
@@ -393,7 +470,7 @@ export class SessionMessageQueue {
 
     await this.deps.setSessionStatus("active");
 
-    this.writeUserMessageEvent(participant, data.content, messageId, now);
+    this.writeUserMessageEvent(participant, data.content, messageId, now, data.attachments);
 
     const queuePosition = this.deps.repository.getPendingOrProcessingCount();
 

@@ -247,4 +247,27 @@ export const authOptions: NextAuthOptions = {
   pages: {
     error: "/access-denied",
   },
+  // When IFRAME_ALLOWED_ORIGINS is set (e.g. "https://ide.openkleo.com"),
+  // switch session cookies to SameSite=None so they pass through cross-origin
+  // iframes. SameSite=Lax (the default) blocks cookies in iframes on a
+  // different origin, which would break NextAuth session state. None requires
+  // Secure (HTTPS), which both origins satisfy.
+  ...(process.env.IFRAME_ALLOWED_ORIGINS
+    ? {
+        cookies: {
+          sessionToken: {
+            name: "next-auth.session-token",
+            options: { httpOnly: true, sameSite: "none", path: "/", secure: true },
+          },
+          callbackUrl: {
+            name: "next-auth.callback-url",
+            options: { sameSite: "none", path: "/", secure: true },
+          },
+          csrfToken: {
+            name: "next-auth.csrf-token",
+            options: { sameSite: "none", path: "/", secure: true },
+          },
+        },
+      }
+    : {}),
 };

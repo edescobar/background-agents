@@ -160,6 +160,15 @@ under 72 characters. Use the PR body for details, not the commit message.
   control-plane:
   `terraform apply -target=null_resource.control_plane_build -target=module.control_plane_worker -target='null_resource.web_app_cloudflare_build[0]' -target='null_resource.web_app_cloudflare_deploy[0]'`.
   Deploy Modal separately with `terraform apply -target=module.modal_app`.
+- **Multi-installation GitHub App support**: `GITHUB_APP_INSTALLATION_IDS` (comma-separated) allows
+  the repo picker to show repos from multiple GitHub orgs/accounts. Falls back to the singular
+  `GITHUB_APP_INSTALLATION_ID` for backward compat. `github-provider.ts` holds
+  `appConfigs: GitHubAppConfig[]`; `listRepositories()` merges + dedupes across all installations;
+  per-repo ops resolve the correct installation via `resolveConfigForRepo()`. The token cache key is
+  per-installation (`${appId}:${installationId}`), so no collision. After changing the installation
+  IDs, purge the `REPOS_CACHE` KV key `repos:list:v2` (5-min fresh / 1-hr stale TTL) or wait up to 1
+  hour for the picker to refresh. The GitHub App must be Public to install on other accounts (set
+  back to Private after).
 
 ## CI/CD
 
